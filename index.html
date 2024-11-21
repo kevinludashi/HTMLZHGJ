@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTML/PDF/JPG 转换工具 3.0 </title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 20px;
+        }
+        #preview {
+            border: 1px solid #ccc;
+            margin: 20px 0;
+            padding: 10px;
+            display: none;
+        }
+        .btn {
+            padding: 10px 20px;
+            margin: 10px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        #progressWrapper {
+            margin-top: 20px;
+            display: none;
+        }
+        #progressBar {
+            width: 100%;
+            height: 30px;
+            background-color: #f3f3f3;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        #progress {
+            height: 100%;
+            background-color: #4CAF50;
+            width: 0;
+            border-radius: 5px;
+        }
+        #message {
+            margin-top: 10px;
+            font-size: 16px;
+        }
+        #dragArea {
+            border: 2px dashed #4CAF50;
+            padding: 20px;
+            width: 300px;
+            margin: 20px auto;
+            cursor: pointer;
+        }
+        #dragArea.dragover {
+            background-color: #f0f0f0;
+        }
+        #fileCount {
+            margin-top: 20px;
+            font-size: 16px;
+        }
+        #fileName {
+            font-size: 16px;
+            color: #333;
+            margin-top: 10px;
+        }
+        #refreshButton {
+            background-color: #f44336;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<h1>HTML/PDF/JPG 转换工具 3.0 </h1>
+
+<!-- 拖拽或点击上传区域 -->
+<div id="dragArea">
+    <p>拖拽文件到这里，或者点击选择文件</p>
+    <input type="file" id="fileInput" accept=".html, .pdf" style="display: none;">
+</div>
+
+<!-- 显示上传文件数量 -->
+<div id="fileCount">当前已上传 0 个文件</div>
+
+<!-- 当前上传的文件名 -->
+<div id="fileName"></div>
+
+<!-- 按钮选择转换 -->
+<div id="convertOptions">
+    <button class="btn" id="convertToPDF">HTML转换为PDF</button>
+    <button class="btn" id="convertPDFToJPG">PDF转换为JPG</button>
+</div>
+
+<!-- 刷新网页按钮 -->
+<button class="btn" id="refreshButton">转换新文件前-请点此刷新网页后再上传</button>
+
+<!-- 显示上传的HTML文件内容 -->
+<div id="preview"></div>
+
+<!-- 进度条 -->
+<div id="progressWrapper">
+    <div id="progressBar">
+        <div id="progress"></div>
+    </div>
+    <div id="message">正在转换，请稍等...</div>
+</div>
+
+<!-- 导入所需的库 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/0.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.2/html2pdf.bundle.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+<!-- 导入PDF.js库 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
+
+<script>
+    // 记录上传文件数量和文件名
+    let fileCount = 0;
+    let currentFileName = ''; // 用于存储当前上传的文件名
+
+    // 处理文件上传
+    const dragArea = document.getElementById('dragArea');
+    const fileInput = document.getElementById('fileInput');
+    const fileCountDisplay = document.getElementById('fileCount');
+    const fileNameDisplay = document.getElementById('fileName');
+    const previewDiv = document.getElementById('preview');
+
+    // 点击区域选择文件
+    dragArea.addEventListener('click', function() {
+        fileInput.click();
+    });
+
+    // 拖拽文件事件
+    dragArea.addEventListener('dragover', function(event) {
+        event.preventDefault();
+        dragArea.classList.add('dragover');
+    });
+
+    dragArea.addEventListener('dragleave', function() {
+        dragArea.classList.remove('dragover');
+    });
+
+    dragArea.addEventListener('drop', function(event) {
+        event.preventDefault();
+        dragArea.classList.remove('dragover');
+        const file = event.dataTransfer.files[0];
+        if (file) {
+            handleFile(file);
+        }
+    });
+
+    // 处理文件选择
+    fileInput.addEventListener('change', function(event) {
+        const file = event.target.files[0];
+        if (file) {
+            handleFile(file);
+        }
+    });
+
+    // 文件处理函数
+    function handleFile(file) {
+        // 清除之前的文件预览内容
+        previewDiv.innerHTML = '';
+        previewDiv.style.display = 'none';
+
+        // 清除文件名称显示
+        fileNameDisplay.innerHTML = '';
+
+        fileCount++; // 增加文件数量
+        fileCountDisplay.textContent = `当前已上传 ${fileCount} 个文件`; // 更新显示的文件数量
+
+        // 获取并显示文件名
+        currentFileName = file.name; // 保存当前文件名
+        const fileName = document.createElement('p');
+        fileName.textContent = `当前上传文件: ${currentFileName}`;
+        fileNameDisplay.appendChild(fileName);
+        previewDiv.style.display = 'block';
+
+        if (file.name.endsWith('.html')) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const htmlContent = e.target.result;
+                previewDiv.innerHTML += htmlContent; // 在预览区域显示HTML内容
+            };
+            reader.readAsText(file);
+        } else if (file.name.endsWith('.pdf')) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const pdfData = e.target.result;
+                loadPDF(pdfData);
+            };
+            reader.readAsArrayBuffer(file);
+        } else {
+            alert('请选择一个HTML或PDF文件');
+        }
+    }
+
+    // 更新进度条
+    function updateProgress(percentage) {
+        document.getElementById('progress').style.width = percentage + '%';
+    }
+
+    // 显示进度条
+    function showProgress() {
+        document.getElementById('progressWrapper').style.display = 'block';
+    }
+
+    // 隐藏进度条
+    function hideProgress() {
+        document.getElementById('progressWrapper').style.display = 'none';
+    }
+
+    // 将HTML转换为PDF
+    function convertToPDF() {
+        showProgress();
+        const element = document.getElementById('preview');
+        
+        // 使用 html2pdf.js 库直接转换 HTML 为 PDF
+        html2pdf(element, {
+            margin: 10,
+            filename: currentFileName.replace('.html', '.pdf'), // 使用源文件名作为PDF文件名
+            html2canvas: { 
+                scale: 5 // 将scale设置为更高的值，以提升清晰度
+            },
+            jsPDF: { 
+                unit: 'mm', 
+                format: 'a4', 
+                orientation: 'portrait'
+            },
+            progressCallback: function(progress) {
+                const percentage = Math.floor(progress * 100);
+                updateProgress(percentage);
+            }
+        }).then(function() {
+            hideProgress();
+            document.getElementById('message').textContent = `${currentFileName.replace('.html', '.pdf')} 转换成功！`; // 页面提示成功
+        }).catch(function(error) {
+            hideProgress();
+            document.getElementById('message').textContent = '转换失败: ' + error.message; // 页面提示失败
+        });
+    }
+
+    // 加载PDF文件
+    function loadPDF(pdfData) {
+        const loadingTask = pdfjsLib.getDocument(pdfData);
+        loadingTask.promise.then(function(pdf) {
+            const numPages = pdf.numPages; // 获取PDF的页数
+            // 弹出提示让用户选择转换方式
+            const conversionChoice = confirm(`该PDF文件包含 ${numPages} 页，是否转换为多张JPG并下载？\n点击“确定”转换为多张JPG，点击“取”将多页拼接成一张长图。`);
+            
+            if (conversionChoice) {
+                // 用户选择转换为多张JPG
+                convertPDFToMultipleJPG(pdf, numPages);
+            } else {
+                // 用户选择拼接成一张长图
+                convertPDFToSingleLongImage(pdf, numPages);
+            }
+        }, function(error) {
+            document.getElementById('message').textContent = 'PDF加载失败: ' + error.message; // 页面提示失败
+        });
+    }
+
+    // 将PDF的每一页转换为单独的JPG文件
+    function convertPDFToMultipleJPG(pdf, numPages) {
+        const pages = [];
+        let currentPage = 1;
+        
+        function renderPage() {
+            pdf.getPage(currentPage).then(function(page) {
+                const scale = 4;  // 设置为4K分辨率的缩放比例
+                const viewport = page.getViewport({ scale: scale });
+
+                // Prepare canvas using PDF page dimensions
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+
+                // Render PDF page into canvas context
+                const renderContext = {
+                    canvasContext: context,
+                    viewport: viewport
+                };
+                const renderTask = page.render(renderContext);
+                renderTask.promise.then(function() {
+                    const imgData = canvas.toDataURL('image/jpeg');
+                    pages.push(imgData);
+
+                    // 如果不是最后一页，则继续渲染下一页
+                    if (currentPage < numPages) {
+                        currentPage++;
+                        renderPage();
+                    } else {
+                        // 所有页面渲染完毕，开始下载所有JPG
+                        downloadMultipleJPG(pages);
+                    }
+                });
+            });
+        }
+
+        renderPage();
+    }
+
+    // 下载多个JPG文件
+    function downloadMultipleJPG(pages) {
+        pages.forEach((imgData, index) => {
+            const link = document.createElement('a');
+            link.href = imgData;
+            link.download = `${currentFileName.replace('.pdf', '')}_page_${index + 1}.jpg`; // 使用源文件名和页面编号
+            link.click();
+        });
+        hideProgress();
+        document.getElementById('message').textContent = `${currentFileName.replace('.pdf', '')} 转换成功！`; // 页面提示成功
+    }
+
+    // 将PDF的所有页面拼接成一张长图
+    function convertPDFToSingleLongImage(pdf, numPages) {
+        const pages = [];
+        let currentPage = 1;
+
+        function renderPage() {
+            pdf.getPage(currentPage).then(function(page) {
+                const scale = 4;  // 设置为4K分辨率的缩放比例
+                const viewport = page.getViewport({ scale: scale });
+
+                // Prepare canvas using PDF page dimensions
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+
+                // Render PDF page into canvas context
+                const renderContext = {
+                    canvasContext: context,
+                    viewport: viewport
+                };
+                const renderTask = page.render(renderContext);
+                renderTask.promise.then(function() {
+                    pages.push(canvas);
+                    // 如果不是最后一页，则继续渲染下一页
+                    if (currentPage < numPages) {
+                        currentPage++;
+                        renderPage();
+                    } else {
+                        // 拼接所有页面为一张长图
+                        const longImage = createLongImage(pages);
+                        const imgData = longImage.toDataURL('image/jpeg');
+                        downloadLongImage(imgData);
+                    }
+                });
+            });
+        }
+
+        renderPage();
+    }
+
+    // 创建拼接的长图
+    function createLongImage(pages) {
+        let totalHeight = 0;
+        let width = pages[0].width;
+        
+        // 计算所有页面的总高度
+        pages.forEach(page => {
+            totalHeight += page.height;
+        });
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = totalHeight;
+        const context = canvas.getContext('2d');
+
+        let currentHeight = 0;
+
+        // 将每一页绘制到长图上
+        pages.forEach(page => {
+            context.drawImage(page, 0, currentHeight);
+            currentHeight += page.height;
+        });
+
+        return canvas;
+    }
+
+    // 下载拼接的长图
+    function downloadLongImage(imgData) {
+        const link = document.createElement('a');
+        link.href = imgData;
+        link.download = `${currentFileName.replace('.pdf', '_long_image')}.jpg`; // 使用源文件名作为长图文件名
+        link.click();
+        hideProgress();
+        document.getElementById('message').textContent = `${currentFileName.replace('.pdf', '_long_image')}.jpg 转换成功！`; // 页面提示成功
+    }
+
+    // 刷新页面
+    document.getElementById('refreshButton').addEventListener('click', function() {
+        location.reload(); // 刷新页面
+    });
+
+    // 将HTML转换为PDF
+    document.getElementById('convertToPDF').addEventListener('click', function() {
+        convertToPDF();
+    });
+
+    // PDF转换为JPG
+    document.getElementById('convertPDFToJPG').addEventListener('click', function() {
+        showProgress();
+        const fileInput = document.getElementById('fileInput');
+        const file = fileInput.files[0];
+        if (file && file.name.endsWith('.pdf')) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const pdfData = e.target.result;
+                loadPDF(pdfData);
+            };
+            reader.readAsArrayBuffer(file);
+        }
+    });
+</script>
+
+</body>
+</html>
